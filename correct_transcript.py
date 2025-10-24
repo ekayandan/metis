@@ -12,18 +12,24 @@ from typing import List, Optional, Sequence
 import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-from scripts.correction.acoustic_alternative_expander import expand_with_homophones
+from scripts.correction.acoustic_alternative_expander import (
+    expand_with_homophones,
+    filter_by_phonetic_distance,
+)
 
 # -------------------- Configuration -------------------- #
 CONFIG = {
-    "CONFIDENCE_THRESHOLD": 0.9,
+    "CONFIDENCE_THRESHOLD": 0.97,
     "MAX_CONTEXT_TOKENS": 200,
     "MAX_ALTERNATIVES": 3,
     "MODEL_NAME": "google/flan-t5-base",
     "GENERATION_MAX_NEW_TOKENS": 6,
     "GENERATION_NUM_BEAMS": 4,
-    "DEFAULT_INPUT_PATH": "transcribe_output.json",
-    "DEFAULT_OUTPUT_PATH": "corrected_transcript.txt",
+    "DEFAULT_INPUT_PATH": "artifacts/whisper_transcribe_output.json",
+    "DEFAULT_OUTPUT_PATH": "artifacts/whisper_corrected.txt",
+    "ENABLE_HOMOPHONE_EXPANSION": False,
+    "ENABLE_PHONETIC_FILTER": True,
+    "PHONETIC_MAX_DISTANCE": 0,
 }
 # ------------------------------------------------------- #
 
@@ -59,6 +65,40 @@ class Token:
     alternatives: List[str]
     type: str
     is_punctuation: bool
+
+
+def _normalize_for_comparison(text: str) -> str:
+    return text.lower().strip(string.punctuation)
+
+
+def is_degenerate_choice(choice: str, token_index: int, tokens: Sequence[Token], original: str) -> bool:
+    """Reject replacements that duplicate neighbours or introduce whitespace splits."""
+
+    if not choice:
+        return True
+
+    if " " in choice:
+        return True
+
+    candidate_norm = _normalize_for_comparison(choice)
+    if not candidate_norm:
+        return True
+
+    original_norm = _normalize_for_comparison(original)
+    if candidate_norm == original_norm:
+        return True
+
+    if token_index > 0:
+        left_norm = _normalize_for_comparison(tokens[token_index - 1].text)
+        if candidate_norm == left_norm:
+            return True
+
+    if token_index + 1 < len(tokens):
+        right_norm = _normalize_for_comparison(tokens[token_index + 1].text)
+        if candidate_norm == right_norm:
+            return True
+
+    return False
 
 
 def parse_args() -> argparse.Namespace:
@@ -201,25 +241,51 @@ def select_alternative(
     return None
 
 
-def apply_corrections(tokens: List[Token], tokenizer: AutoTokenizer, model: AutoModelForSeq2SeqLM) -> None:
+def apply_corrections(
+    tokens: List[Token], tokenizer: AutoTokenizer, model: AutoModelForSeq2SeqLM
+) -> List[dict[str, object]]:
     threshold = CONFIG["CONFIDENCE_THRESHOLD"]
+    applied_changes: List[dict[str, object]] = []
     for token in tokens:
         if token.type != "pronunciation":
             continue
         if token.confidence is None or token.confidence >= threshold:
             continue
+        original_word = token.text
         options = token.alternatives[: CONFIG["MAX_ALTERNATIVES"]]
-        options = expand_with_homophones(options)
+        if CONFIG.get("ENABLE_HOMOPHONE_EXPANSION", True):
+            options = expand_with_homophones(options)
+        if CONFIG.get("ENABLE_PHONETIC_FILTER", False):
+            options = filter_by_phonetic_distance(
+                original_word,
+                options,
+                max_distance=CONFIG.get("PHONETIC_MAX_DISTANCE", 1),
+            )
         if not options:
             continue
         context = build_context(tokens, token.index)
         choice = select_alternative(tokenizer, model, context, options)
-        if choice and choice in options:
-            token.text = choice
+        if not choice or choice not in options:
+            continue
+        if is_degenerate_choice(choice, token.index, tokens, original_word):
+            continue
+        token.text = choice
+        applied_changes.append(
+            {
+                "index": token.index,
+                "original": original_word,
+                "replacement": choice,
+                "confidence": token.confidence,
+                "options": options,
+            }
+        )
+    return applied_changes
 
 
 def save_transcript(tokens: Sequence[Token], output_path: Path) -> str:
     transcript = tokens_to_text(tokens)
+    if output_path.parent:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(transcript)
     return transcript
 
@@ -240,9 +306,19 @@ def main() -> None:
     if not tokens:
         raise ValueError("No tokens parsed from transcript.")
     tokenizer, model = load_model(args.model)
-    apply_corrections(tokens, tokenizer, model)
+    changes = apply_corrections(tokens, tokenizer, model)
     output_path = Path(args.output)
     transcript = save_transcript(tokens, output_path)
+    if changes:
+        print("Corrections applied (low confidence tokens):")
+        for change in changes:
+            idx = change["index"]
+            original = change["original"]
+            replacement = change["replacement"]
+            conf = change["confidence"]
+            print(f"  #{idx}: '{original}' -> '{replacement}' (conf={conf if conf is not None else 'n/a'})")
+    else:
+        print("No corrections applied.")
     print(transcript)
 
 

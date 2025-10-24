@@ -219,3 +219,44 @@ def expand_with_homophones(alternatives: Sequence[str]) -> List[str]:
     if len(expanded) > _MAX_TOTAL_OPTIONS:
         expanded = expanded[:_MAX_TOTAL_OPTIONS]
     return expanded
+
+
+def filter_by_phonetic_distance(
+    base_word: str,
+    candidates: Sequence[str],
+    *,
+    max_distance: int = _PHONETIC_MAX_DISTANCE,
+) -> List[str]:
+    """Keep only candidates whose phoneme distance from ``base_word`` is within ``max_distance``.
+
+    If phonemes cannot be derived for the base word or a candidate, the candidate is retained to
+    avoid false negatives. Always preserves the original ordering of the input sequence.
+    """
+
+    if not candidates:
+        return []
+
+    base_phonemes = _phonemes_for_word(base_word)
+    if not base_phonemes:
+        return list(candidates)
+
+    filtered: List[str] = []
+    for candidate in candidates:
+        if not candidate:
+            continue
+        if candidate.lower() == base_word.lower():
+            filtered.append(candidate)
+            continue
+        cand_phonemes = _phonemes_for_word(candidate)
+        if not cand_phonemes:
+            filtered.append(candidate)
+            continue
+        distance = phoneme_edit_distance(base_phonemes, cand_phonemes)
+        if distance <= max_distance:
+            filtered.append(candidate)
+
+    if not filtered:
+        # Ensure the best ASR guess is preserved even if other options were filtered out.
+        filtered.append(candidates[0])
+
+    return filtered
