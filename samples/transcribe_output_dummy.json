@@ -1,0 +1,77 @@
+{
+  "jobName": "dummy-sample",
+  "results": {
+    "transcripts": [
+      {
+        "transcript": "helo world this is a test."
+      }
+    ],
+    "items": [
+      {
+        "start_time": "0.00",
+        "end_time": "0.42",
+        "alternatives": [
+          { "confidence": "0.55", "content": "helo" },
+          { "confidence": "0.35", "content": "hello" },
+          { "confidence": "0.10", "content": "halo" }
+        ],
+        "type": "pronunciation"
+      },
+      {
+        "start_time": "0.42",
+        "end_time": "0.78",
+        "alternatives": [
+          { "confidence": "0.92", "content": "world" },
+          { "confidence": "0.08", "content": "whirled" }
+        ],
+        "type": "pronunciation"
+      },
+      {
+        "start_time": "0.78",
+        "end_time": "1.05",
+        "alternatives": [
+          { "confidence": "0.60", "content": "this" },
+          { "confidence": "0.22", "content": "these" },
+          { "confidence": "0.18", "content": "tis" }
+        ],
+        "type": "pronunciation"
+      },
+      {
+        "start_time": "1.05",
+        "end_time": "1.29",
+        "alternatives": [
+          { "confidence": "0.48", "content": "is" },
+          { "confidence": "0.32", "content": "his" },
+          { "confidence": "0.20", "content": "it's" }
+        ],
+        "type": "pronunciation"
+      },
+      {
+        "start_time": "1.29",
+        "end_time": "1.68",
+        "alternatives": [
+          { "confidence": "0.40", "content": "a" },
+          { "confidence": "0.33", "content": "uh" },
+          { "confidence": "0.27", "content": "the" }
+        ],
+        "type": "pronunciation"
+      },
+      {
+        "start_time": "1.68",
+        "end_time": "2.04",
+        "alternatives": [
+          { "confidence": "0.51", "content": "test" },
+          { "confidence": "0.31", "content": "text" },
+          { "confidence": "0.18", "content": "tests" }
+        ],
+        "type": "pronunciation"
+      },
+      {
+        "alternatives": [
+          { "confidence": "1.00", "content": "." }
+        ],
+        "type": "punctuation"
+      }
+    ]
+  }
+}
