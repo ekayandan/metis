@@ -12,6 +12,8 @@ from typing import List, Optional, Sequence
 import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
+from scripts.correction.acoustic_alternative_expander import expand_with_homophones
+
 # -------------------- Configuration -------------------- #
 CONFIG = {
     "CONFIDENCE_THRESHOLD": 0.9,
@@ -207,6 +209,7 @@ def apply_corrections(tokens: List[Token], tokenizer: AutoTokenizer, model: Auto
         if token.confidence is None or token.confidence >= threshold:
             continue
         options = token.alternatives[: CONFIG["MAX_ALTERNATIVES"]]
+        options = expand_with_homophones(options)
         if not options:
             continue
         context = build_context(tokens, token.index)

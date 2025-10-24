@@ -1,14 +1,14 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-The core post-correction logic lives in `correct_transcript.py`, and should stay focused on the single-file pipeline that loads AWS Transcribe JSON, infers corrections, and writes text output. Supporting utilities reside in `scripts/` (batch submission to Transcribe, word-error-rate analysis, TED-LIUM sampling). Keep sample assets such as `tedlium_10min_sample/` lightweight, stash canonical fixtures in `samples/` (see `transcribe_output_dummy.json`), and reserve top-level additions for shared configuration (`requirements.txt`, future docs).
+The core post-correction logic lives in `correct_transcript.py`, and should stay focused on the single-file pipeline that loads AWS Transcribe JSON, infers corrections, and writes text output. Supporting utilities reside under `scripts/` by pipeline stage (dataset, transcribe, correction, evaluation). Keep sample assets such as `tedlium_10min_sample/` lightweight, stash canonical fixtures in `samples/` (see `transcribe_output_dummy.json`), and reserve top-level additions for shared configuration (`requirements.txt`, future docs).
 
 ### Pipeline Steps & Scripts
 - **Dataset prep**: `scripts/dataset/setup_from_aws_csv.sh` (bootstrap manifests from AWS metadata).
 - **Transcribe submission**: `scripts/transcribe/run_transcribe.sh` (shell wrapper) and `scripts/transcribe/aws_transcribe_batch.py` (queue batch jobs, manage buckets, download JSON).
 - **Inference & correction**: `correct_transcript.py` (single JSON correction) and `scripts/correction/batch_correct_transcripts.py` (manifest-driven multi-file run).
 - **Evaluation**: `scripts/evaluation/measure_wer.py` (WER metrics) and `aws_nbest.tsv`/`sample10min.tsv` outputs for manual review.
-- **Support utilities**: `cv_en_10min-7756ce2a.json` as archived baseline, plus `samples/transcribe_output_dummy.json` for regression checks.
+- **Support utilities**: `combined_10min-7756ce2a.json` as archived baseline, plus `samples/transcribe_output_dummy.json` for regression checks.
 
 ## Build, Test, and Development Commands
 Set up dependencies in a fresh virtual environment before touching models:

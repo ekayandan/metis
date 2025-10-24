@@ -1,7 +1,10 @@
 boto3
 botocore
+g2p_en
+numpy
+pronouncing
 requests
-transformers
 torch
 torchaudio
+transformers
 tqdm

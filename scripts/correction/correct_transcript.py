@@ -11,6 +11,15 @@ from typing import List, Optional, Sequence
 
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, pipeline
 
+import sys
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.correction.acoustic_alternative_expander import expand_with_homophones
+
 # ------------------------------
 # Configuration
 # ------------------------------
@@ -115,7 +124,7 @@ def correct_transcript(tokens: List[Token], generator=None) -> List[Token]:
             continue
         if token.confidence >= CONFIDENCE_THRESHOLD:
             continue
-        options = token.alternatives[:MAX_ALTERNATIVES]
+        options = expand_with_homophones(token.alternatives[:MAX_ALTERNATIVES])
         if not options:
             continue
         context = build_context(tokens, idx)
