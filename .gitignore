@@ -17,3 +17,6 @@ artifacts/
 
 # Preserve shared template
 !env.example
+
+# Environment secrets
+.env.aws
