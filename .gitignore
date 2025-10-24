@@ -1,0 +1,22 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+.env
+.env.local
+
+# Local artifacts
+artifacts/
+
+# Editor/OS noise
+.DS_Store
+
+# Preserve shared template
+!env.example
+
+# Environment secrets
+.env.aws
