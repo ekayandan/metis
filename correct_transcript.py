@@ -319,7 +319,7 @@ def load_transcribe_segments(path: Path) -> List[Segment]:
                             if conf_diff <= 0.005:
                                 needs_correction = True
                                 print(f"✅ Needs correction: Alternative has similar confidence (diff={conf_diff:.4f})")
-                                break
+                break
 
         if not needs_correction:
             print(f"❌ Skipping: No correction needed")
@@ -1038,8 +1038,8 @@ def main() -> None:
             print("\n  Segment-level changes:")
             for change in segment_changes[:5]:  # Show first 5
                 idx = change["segment_index"]
-                original = change["original"]
-                replacement = change["replacement"]
+            original = change["original"]
+            replacement = change["replacement"]
                 print(f"    Segment #{idx}: '{original[:60]}...' -> '{replacement[:60]}...'")
     else:
         print("No corrections applied.")
