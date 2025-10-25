@@ -6,7 +6,10 @@ import argparse
 import csv
 import re
 import sys
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
+
+from jiwer import wer as jiwer_wer
+from torchmetrics.text import WordErrorRate
 
 
 def normalize_and_tokenize(text: str) -> List[str]:
@@ -39,7 +42,27 @@ def load_transcripts(path: str, text_column: int) -> Dict[str, List[str]]:
     return transcripts
 
 
-def alignment_stats(reference: List[str], hypothesis: List[str]) -> Tuple[int, int, int]:
+def load_hypotheses_with_candidates(path: str) -> Dict[str, List[List[str]]]:
+    candidates: Dict[str, List[List[str]]] = {}
+    with open(path, newline="", encoding="utf-8") as handle:
+        reader = csv.reader(handle, delimiter="\t")
+        for row in reader:
+            if not row:
+                continue
+            key = row[0].strip()
+            if not key:
+                continue
+            variant_tokens = [normalize_and_tokenize(value) for value in row[1:]]
+            candidates[key] = variant_tokens
+    return candidates
+
+
+AlignmentStep = Tuple[str, Optional[int], Optional[int], Optional[str], Optional[str]]
+
+
+def alignment_details(
+    reference: List[str], hypothesis: List[str]
+) -> Tuple[int, int, int, List[AlignmentStep]]:
     ref_len, hyp_len = len(reference), len(hypothesis)
     dp = [[0] * (hyp_len + 1) for _ in range(ref_len + 1)]
     backtrack = [["" for _ in range(hyp_len + 1)] for _ in range(ref_len + 1)]
@@ -50,6 +73,7 @@ def alignment_stats(reference: List[str], hypothesis: List[str]) -> Tuple[int, i
     for j in range(1, hyp_len + 1):
         dp[0][j] = j
         backtrack[0][j] = "ins"
+    backtrack[0][0] = "done"
 
     for i in range(1, ref_len + 1):
         for j in range(1, hyp_len + 1):
@@ -71,47 +95,112 @@ def alignment_stats(reference: List[str], hypothesis: List[str]) -> Tuple[int, i
 
     substitutions = deletions = insertions = 0
     i, j = ref_len, hyp_len
+    path: List[AlignmentStep] = []
     while i > 0 or j > 0:
         action = backtrack[i][j]
         if action == "eq":
+            path.append((action, i - 1, j - 1, reference[i - 1], hypothesis[j - 1]))
             i -= 1
             j -= 1
         elif action == "sub":
             substitutions += 1
+            path.append((action, i - 1, j - 1, reference[i - 1], hypothesis[j - 1]))
             i -= 1
             j -= 1
         elif action == "del":
             deletions += 1
+            path.append((action, i - 1, None, reference[i - 1], None))
             i -= 1
         elif action == "ins":
             insertions += 1
+            path.append((action, None, j - 1, None, hypothesis[j - 1]))
             j -= 1
         else:
             break
+    path.reverse()
 
-    return substitutions, deletions, insertions
+    return substitutions, deletions, insertions, path
+
+
+def build_alternative_sets(
+    reference_tokens: Sequence[str],
+    candidate_sequences: Sequence[Sequence[str]],
+) -> List[Set[str]]:
+    alternative_sets: List[Set[str]] = [set() for _ in reference_tokens]
+    if not reference_tokens:
+        return alternative_sets
+
+    for sequence in candidate_sequences:
+        if not sequence:
+            continue
+        _, _, _, path = alignment_details(list(reference_tokens), list(sequence))
+        for action, ref_index, _, _, hyp_word in path:
+            if action == "ins" or ref_index is None:
+                continue
+            if hyp_word is not None:
+                alternative_sets[ref_index].add(hyp_word)
+    return alternative_sets
+
+
+def alt_hits_for_errors(
+    alignment_path: Sequence[AlignmentStep], alternative_sets: Sequence[Set[str]]
+) -> Tuple[int, int]:
+    false_hits = 0
+    false_total = 0
+    for action, ref_index, _, ref_word, _ in alignment_path:
+        if action != "sub" or ref_index is None or not ref_word:
+            continue
+        false_total += 1
+        if ref_word in alternative_sets[ref_index]:
+            false_hits += 1
+    return false_hits, false_total
 
 
 def compute_wer(
     reference_map: Dict[str, List[str]],
-    hypothesis_map: Dict[str, List[str]],
-) -> Tuple[int, int, int, int]:
+    hypothesis_candidates: Dict[str, List[List[str]]],
+    hyp_column_index: int,
+) -> Tuple[int, int, int, int, float, int, int, Set[str]]:
     substitutions = deletions = insertions = 0
     reference_words = 0
-    matched_items = 0
+    matched_keys: Set[str] = set()
+    total_alt_hits = 0
+    total_alt_words = 0
+    wer_metric = WordErrorRate()
 
     for key, ref_tokens in reference_map.items():
-        hyp_tokens = hypothesis_map.get(key)
-        if hyp_tokens is None:
+        variants = hypothesis_candidates.get(key)
+        if not variants or hyp_column_index >= len(variants):
             continue
-        s, d, i = alignment_stats(ref_tokens, hyp_tokens)
+        hyp_tokens = variants[hyp_column_index]
+        s, d, i, alignment_path = alignment_details(ref_tokens, hyp_tokens)
         substitutions += s
         deletions += d
         insertions += i
         reference_words += len(ref_tokens)
-        matched_items += 1
+        matched_keys.add(key)
 
-    return substitutions, deletions, insertions, reference_words
+        reference_text = " ".join(ref_tokens)
+        hypothesis_text = " ".join(hyp_tokens)
+        wer_metric.update([hypothesis_text], [reference_text])
+
+        alternative_sets = build_alternative_sets(ref_tokens, variants)
+        alt_hits, alt_total = alt_hits_for_errors(alignment_path, alternative_sets)
+        total_alt_hits += alt_hits
+        total_alt_words += alt_total
+
+    wer_value = float(wer_metric.compute()) if matched_keys else 0.0
+
+    return (
+        substitutions,
+        deletions,
+        insertions,
+        reference_words,
+        wer_value,
+        total_alt_hits,
+        total_alt_words,
+        matched_keys,
+    )
 
 
 def main(args: Iterable[str] | None = None) -> int:
@@ -139,23 +228,36 @@ def main(args: Iterable[str] | None = None) -> int:
         parser.error("--hyp-column must be >= 1")
 
     reference_map = load_transcripts(parsed.reference, text_column=1)
-    hypothesis_map = load_transcripts(parsed.hypothesis, text_column=hyp_column_index + 1)
+    hypothesis_candidates = load_hypotheses_with_candidates(parsed.hypothesis)
 
-    substitutions, deletions, insertions, reference_words = compute_wer(
-        reference_map, hypothesis_map
-    )
+    (
+        substitutions,
+        deletions,
+        insertions,
+        reference_words,
+        wer_value,
+        total_alt_hits,
+        total_alt_words,
+        matched_keys,
+    ) = compute_wer(reference_map, hypothesis_candidates, hyp_column_index)
 
-    missing = set(reference_map) - set(hypothesis_map)
+    missing = set(reference_map) - matched_keys
 
     print(f"Utterances compared: {len(reference_map) - len(missing)}")
     print(f"Missing hypotheses: {len(missing)}")
     print(f"Reference words: {reference_words}")
     if reference_words:
-        wer = (substitutions + deletions + insertions) / reference_words
-        print(f"WER: {wer:.2%}")
+        print(f"WER: {wer_value:.2%}")
         print(f"Substitutions: {substitutions}")
         print(f"Deletions: {deletions}")
         print(f"Insertions: {insertions}")
+        if total_alt_words:
+            alt_hit_rate = total_alt_hits / total_alt_words
+            print(f"Alt-hit rate: {alt_hit_rate:.2%}")
+            print(f"Alt-hit successes: {total_alt_hits}")
+            print(f"Alt-hit opportunities: {total_alt_words}")
+        else:
+            print("Alt-hit rate: n/a")
     else:
         print("No reference words to compare.")
 

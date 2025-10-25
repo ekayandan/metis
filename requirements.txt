@@ -6,5 +6,7 @@ pronouncing
 requests
 torch
 torchaudio
+torchmetrics
+jiwer
 transformers
 tqdm

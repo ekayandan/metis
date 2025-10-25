@@ -4,8 +4,18 @@ This project implements a lightweight post-correction system for automatic speec
 
 ## Overview
 
-1. Generate a transcript from your ASR provider. Use AWS Transcribe batch jobs or the bundled Faster-Whisper wrapper; both emit the AWS-style JSON that the correction step expects.
-2. Feed the resulting JSON into the correction stage to revise low-confidence tokens with a local span-infilling model (e.g., Flan-T5-Base).
+1. Start from a dataset in this repository. Each dataset ships with an audio file and its reference transcript so every run begins from the same source material.
+2. Generate a transcript from your ASR provider. Use AWS Transcribe batch jobs or the bundled Faster-Whisper wrapper; both emit the AWS-style JSON that the correction step expects.
+3. Feed the resulting JSON into the correction stage to revise low-confidence tokens with a local span-infilling model (e.g., Flan-T5-Base).
+
+## Datasets
+
+Curated corpora live under `datasets/<name>/` with a consistent layout:
+
+- `audio.flac`: source audio clip for the sample.
+- `reference.tsv`: tab-separated file with a single row `audio.flac<TAB>reference text` used by evaluation utilities.
+
+Derived artifacts (ASR hypotheses, corrections, metrics, etc.) should be written to `artifacts/` or another git-ignored location. The repository intentionally keeps datasets minimal so that anyone can regenerate downstream products from scratch.
 
 ## Features
 
@@ -49,14 +59,14 @@ Download the resulting AWS JSON into `artifacts/` (or `samples/` for curated fix
 By convention, write intermediate Whisper outputs into the local `artifacts/` folder (git-ignored). The default CLI arguments already point there, so you can simply run:
 
 ```bash
-python transcribe_audio.py path/to/audio.wav
+python transcribe_audio.py datasets/cv_en_10min/audio.flac
 python correct_transcript.py
 ```
 
 The `transcribe_audio.py` script uses Faster-Whisper to emit AWS-compatible JSON:
 
 ```bash
-python transcribe_audio.py path/to/audio.wav \
+python transcribe_audio.py datasets/cv_en_10min/audio.flac \
   --output transcribe_output.json \
   --model base \
   --beam-size 5 \
@@ -83,3 +93,9 @@ python correct_transcript.py --input artifacts/transcribe_output.json --output a
 ```
 
 Batch workflows are supported via `python scripts/correction/batch_correct_transcripts.py --manifest manifests/batch.tsv --output-dir out/`.
+
+To measure word error rate against the curated reference, run:
+
+```bash
+python scripts/evaluation/measure_wer.py datasets/cv_en_10min/reference.tsv path/to/hypotheses.tsv --hyp-column 2
+```
