@@ -15,6 +15,11 @@ Curated corpora live under `datasets/<name>/` with a consistent layout:
 - `audio.flac`: source audio clip for the sample.
 - `reference.tsv`: tab-separated file with a single row `audio.flac<TAB>reference text` used by evaluation utilities.
 
+AWS reference transcriptions for these datasets are checked into `fixtures/aws/<name>/`:
+
+- `transcribe_output.json`: canonical AWS Transcribe JSON response (with alternatives/confidences).
+- `aws_nbest.tsv`: tab-separated N-best texts extracted from the JSON (column 1 = audio key, column 2+ = ranked hypotheses).
+
 Derived artifacts (ASR hypotheses, corrections, metrics, etc.) should be written to `artifacts/` or another git-ignored location. The repository intentionally keeps datasets minimal so that anyone can regenerate downstream products from scratch.
 
 ## Features
@@ -98,4 +103,10 @@ To measure word error rate against the curated reference, run:
 
 ```bash
 python scripts/evaluation/measure_wer.py datasets/cv_en_10min/reference.tsv path/to/hypotheses.tsv --hyp-column 2
+```
+
+For the bundled AWS baselines reuse `fixtures/aws/<name>/aws_nbest.tsv`, e.g.:
+
+```bash
+python scripts/evaluation/measure_wer.py datasets/cv_en_10min/reference.tsv fixtures/aws/cv_en_10min/aws_nbest.tsv --hyp-column 2
 ```

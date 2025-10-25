@@ -5,6 +5,10 @@ Curated corpora now live under `datasets/<name>/`, each containing only:
 - `audio.flac`: the canonical audio clip.
 - `reference.tsv`: a single-row TSV `audio.flac<TAB>reference transcript` for scoring runs.
 
+Canonical AWS outputs ship under `fixtures/aws/<name>/`:
+- `transcribe_output.json`: raw AWS JSON (with alternatives, confidences, timestamps).
+- `aws_nbest.tsv`: N-best hypotheses extracted from the JSON.
+
 The correction logic remains in `correct_transcript.py` (single JSON pipeline). Supporting utilities stay under `scripts/` grouped by stage (dataset, transcribe, correction, evaluation). Use `artifacts/` (git-ignored) for generated transcripts, WER dumps, or debug output. The `samples/` directory is reserved for lightweight fixtures such as `transcribe_output_dummy.json` that exercise parsing logic.
 
 ### Pipeline Steps & Scripts
@@ -12,7 +16,7 @@ The correction logic remains in `correct_transcript.py` (single JSON pipeline). 
 - **Transcribe submission (AWS)**: `scripts/transcribe/run_transcribe.sh` (shell wrapper) and `scripts/transcribe/aws_transcribe_batch.py` (queue batch jobs, manage buckets, download JSON).
 - **Transcribe submission (local Whisper)**: `transcribe_audio.py` CLI backed by `transcription/` (Faster-Whisper, emits AWS-compatible JSON into `artifacts/`).
 - **Inference & correction**: `correct_transcript.py` (single JSON correction) and `scripts/correction/batch_correct_transcripts.py` (manifest-driven multi-file run).
-- **Evaluation**: `scripts/evaluation/measure_wer.py` (WER metrics) using `datasets/<name>/reference.tsv` as ground truth. Store hypotheses/metrics alongside run artefacts in `artifacts/`.
+- **Evaluation**: `scripts/evaluation/measure_wer.py` (WER metrics) using `datasets/<name>/reference.tsv` as ground truth. Reuse stored AWS baselines from `fixtures/aws/<name>/aws_nbest.tsv`, and place new hypotheses/metrics alongside run artefacts in `artifacts/`.
 - **Support utilities**: `samples/transcribe_output_dummy.json` for regression checks (kept small and deterministic).
 
 ## Build, Test, and Development Commands
