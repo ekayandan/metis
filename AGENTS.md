@@ -5,7 +5,8 @@ The core post-correction logic lives in `correct_transcript.py`, and should stay
 
 ### Pipeline Steps & Scripts
 - **Dataset prep**: `scripts/dataset/setup_from_aws_csv.sh` (bootstrap manifests from AWS metadata).
-- **Transcribe submission**: `scripts/transcribe/run_transcribe.sh` (shell wrapper) and `scripts/transcribe/aws_transcribe_batch.py` (queue batch jobs, manage buckets, download JSON).
+- **Transcribe submission (AWS)**: `scripts/transcribe/run_transcribe.sh` (shell wrapper) and `scripts/transcribe/aws_transcribe_batch.py` (queue batch jobs, manage buckets, download JSON).
+- **Transcribe submission (local Whisper)**: `transcribe_audio.py` CLI backed by `transcription/` (Faster-Whisper, emits AWS-compatible JSON into `artifacts/`).
 - **Inference & correction**: `correct_transcript.py` (single JSON correction) and `scripts/correction/batch_correct_transcripts.py` (manifest-driven multi-file run).
 - **Evaluation**: `scripts/evaluation/measure_wer.py` (WER metrics) and `aws_nbest.tsv`/`sample10min.tsv` outputs for manual review.
 - **Support utilities**: `combined_10min-7756ce2a.json` as archived baseline, plus `samples/transcribe_output_dummy.json` for regression checks.
@@ -14,6 +15,8 @@ The core post-correction logic lives in `correct_transcript.py`, and should stay
 Set up dependencies in a fresh virtual environment before touching models:
 - `python -m venv venv && source venv/bin/activate`
 - `pip install -r requirements.txt`
+Install Whisper extras when you need the local transcription path:
+- `pip install faster-whisper pronouncing g2p_en`
 Run the single-file corrector with `python correct_transcript.py --input samples/transcribe_output_dummy.json --output corrected.txt`. Batch processing uses `python scripts/correction/batch_correct_transcripts.py --manifest manifests/batch.tsv --output-dir out/`. Validate recognition quality with `python scripts/evaluation/measure_wer.py ref.tsv hyp.tsv --hyp-column 2`. Regenerate AWS jobs via `python scripts/transcribe/aws_transcribe_batch.py --manifest manifests/batch.tsv --region us-east-1`.
 
 ## Coding Style & Naming Conventions

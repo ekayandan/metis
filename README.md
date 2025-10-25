@@ -4,32 +4,48 @@ This project implements a lightweight post-correction system for automatic speec
 
 ## Overview
 
-1. Generate a transcript with the bundled Faster-Whisper wrapper. The wrapper exposes word-level timestamps, confidence scores, and alternative hypotheses while matching the AWS Transcribe JSON schema expected by the correction pipeline.
-2. Feed the resulting JSON into the correction step to revise low-confidence tokens with a local language model (e.g., Flan-T5-Base).
+1. Generate a transcript from your ASR provider. Use AWS Transcribe batch jobs or the bundled Faster-Whisper wrapper; both emit the AWS-style JSON that the correction step expects.
+2. Feed the resulting JSON into the correction stage to revise low-confidence tokens with a local span-infilling model (e.g., Flan-T5-Base).
 
 ## Features
 
-- Drop-in replacement for AWS Transcribe output.
-- Word-level timestamps, confidences, and N-best alternatives captured through beam search.
-- Voice-activity detection (VAD) filtering for cleaner segment boundaries.
+- Works with AWS Transcribe JSON out of the box and accepts Faster-Whisper output as a drop-in replacement.
+- Word-level timestamps, confidences, and N-best alternatives captured through beam search when using the local Faster-Whisper path.
+- Voice-activity detection (VAD) filtering for cleaner segment boundaries in the Faster-Whisper wrapper.
 - Confidence threshold and context size are configurable in the correction stage.
 - The correction model only replaces words when the chosen correction is in the alternative list.
 
 ## Requirements
 
 - Python 3.8+
-- `faster-whisper`
-- `transformers`
 - `torch`
+- `transformers`
 - `sentencepiece` (for T5 models)
+- `boto3` (if you submit jobs to AWS Transcribe)
+- Optional (local transcription): `faster-whisper`
 
 ## Installing dependencies
 
 ```bash
-pip install faster-whisper transformers torch sentencepiece
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+# Optional extras
+pip install faster-whisper
 ```
 
+## Generating transcripts with AWS Transcribe
+
+Use the existing helper scripts to submit and collect batch jobs:
+
+```bash
+python scripts/transcribe/aws_transcribe_batch.py --manifest manifests/batch.tsv --region us-east-1
+```
+
+Download the resulting AWS JSON into `artifacts/` (or `samples/` for curated fixtures) before running the correction stage.
+
 ## Generating transcripts with Faster-Whisper
+
 By convention, write intermediate Whisper outputs into the local `artifacts/` folder (git-ignored). The default CLI arguments already point there, so you can simply run:
 
 ```bash
@@ -59,9 +75,11 @@ The resulting `transcribe_output.json` mirrors AWS Transcribe field names so tha
 
 ## Correcting transcripts
 
-1. Place your `transcribe_output.json` in the project directory.
-2. Run the correction script (not included here) to produce a refined transcript:
+1. Place your AWS- or Whisper-generated `transcribe_output.json` in the project directory (or point the CLI to another path).
+2. Run the correction script to produce a refined transcript:
 
 ```bash
-python correct_transcript.py
+python correct_transcript.py --input artifacts/transcribe_output.json --output artifacts/corrected.txt
 ```
+
+Batch workflows are supported via `python scripts/correction/batch_correct_transcripts.py --manifest manifests/batch.tsv --output-dir out/`.
