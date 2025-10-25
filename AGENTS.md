@@ -4,12 +4,15 @@
 Curated corpora now live under `datasets/<name>/`, each containing only:
 - `audio.flac`: the canonical audio clip.
 - `reference.tsv`: a single-row TSV `audio.flac<TAB>reference transcript` for scoring runs.
+- `*_mini` datasets are 60-second slices chosen from the highest-WER portions of their 10-minute parents for faster debugging passes.
 
 Canonical AWS outputs ship under `fixtures/aws/<name>/`:
 - `transcribe_output.json`: raw AWS JSON (with alternatives, confidences, timestamps).
 - `aws_nbest.tsv`: N-best hypotheses extracted from the JSON.
 
 The correction logic remains in `correct_transcript.py` (single JSON pipeline). Supporting utilities stay under `scripts/` grouped by stage (dataset, transcribe, correction, evaluation). Use `artifacts/` (git-ignored) for generated transcripts, WER dumps, or debug output. The `samples/` directory is reserved for lightweight fixtures such as `transcribe_output_dummy.json` that exercise parsing logic.
+
+**Debugging note:** default to running analysis on the `*_mini` datasets (60-second slices) unless a task explicitly calls for the 10-minute sources. Use the full-length sets only for final validation or when longer context is required.
 
 ### Pipeline Steps & Scripts
 - **Dataset prep**: `scripts/dataset/setup_from_aws_csv.sh` (bootstrap manifests from AWS metadata) and the curated sets in `datasets/`.

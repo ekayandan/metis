@@ -14,6 +14,7 @@ Curated corpora live under `datasets/<name>/` with a consistent layout:
 
 - `audio.flac`: source audio clip for the sample.
 - `reference.tsv`: tab-separated file with a single row `audio.flac<TAB>reference text` used by evaluation utilities.
+- The `*_10min` folders contain the full 10-minute clips; matching `*_mini` folders hold the 60-second high-WER excerpts used for quick iteration.
 
 AWS reference transcriptions for these datasets are checked into `fixtures/aws/<name>/`:
 
